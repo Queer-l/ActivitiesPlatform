@@ -1,0 +1,563 @@
+@page "/activity/{Id:int}"
+@inject ApiService ApiService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ActivityClientCache ActivityCache
+@inject EnrollmentClientCache EnrollmentCache
+@using CampusActivityManagement.Services
+
+@* 活动详情页：按活动 ID 从活动列表中定位详情，并集中处理报名、签到、留言和撤销活动等操作。 *@
+<PageTitle>活动详情</PageTitle>
+
+<LoadingOverlay IsLoading="_isLoading" />
+<ErrorMessage Message="@_error" OnDismiss="() => _error = string.Empty" />
+<SuccessMessage Message="@_success" OnDismiss="() => _success = string.Empty" />
+
+@if (!_isPageReady)
+{
+    <div class="empty-state">正在加载活动详情...</div>
+}
+else if (_activity != null)
+{
+    <div class="card">
+        <h2>@_activity.Title</h2>
+        <span class="badge @GetStatusBadgeClass(_activity.DisplayStatusText)">@_activity.DisplayStatusText</span>
+
+        <div style="margin:16px 0;color:#555;">
+            <p><strong>发布者：</strong>@_activity.PublisherUserName</p>
+            <p><strong>活动时间：</strong>@_activity.ActivityStartTime ~ @_activity.ActivityEndTime</p>
+            <p><strong>报名时间：</strong>@_activity.EnrollStartTime ~ @_activity.EnrollEndTime</p>
+            <p><strong>人数：</strong>@_activity.CurrentCount / @_activity.MaxCount（已签到 @_activity.SignInCount）</p>
+        </div>
+
+        <div style="white-space:pre-wrap;margin:16px 0;padding:16px;background:#f9f9f9;border-radius:4px;">@_activity.Content</div>
+
+        <AuthorizeView>
+            <Authorized>
+                @* 操作按钮区域根据当前登录用户、报名状态、活动状态和容量动态显示，避免用户看到当前不可执行的动作。 *@
+                <div class="flex-row">
+                    @if (CanEnroll())
+                    {
+                        @* 报名按钮只在未报名、活动处于报名中且名额未满时出现；点击后由 DoEnroll 调后端接口完成最终校验。 *@
+                        <button class="btn btn-success" @onclick="DoEnroll" disabled="@_isLoading">报名</button>
+                    }
+
+                    @if (CanCancelEnroll())
+                    {
+                        @* 取消报名依赖本地报名缓存识别当前用户是否已报名，成功取消后会同步刷新缓存和活动人数。 *@
+                        <button class="btn btn-secondary" @onclick="CancelEnroll" disabled="@_isLoading">取消报名</button>
+                    }
+
+                    @if (CanGenerateSignInCode())
+                    {
+                        @* 签到码只给活动发布者展示，用于活动进行中生成限时签到凭证。 *@
+                        <button class="btn btn-primary" @onclick="GenerateCode" disabled="@_isLoading">生成签到码</button>
+                    }
+
+                    @if (CanTakeDownActivity())
+                    {
+                        @* 撤销活动属于高影响操作，先打开确认区，再由 TakeDown 真正提交下架请求。 *@
+                        <button class="btn btn-danger" @onclick="ShowTakeDownConfirm" disabled="@_isLoading">撤销活动</button>
+                    }
+                </div>
+
+                @if (CanScanSignIn())
+                {
+                    @* 已报名用户才显示签到区域；未报名用户即使知道签到码，也不会在前端获得签到入口。 *@
+                    <div class="card" style="margin-top:16px;">
+                        <h3>签到</h3>
+                        <div class="form-group">
+                            <label>签到码</label>
+                            <div style="display:flex;gap:8px;">
+                                <input class="form-control" @bind="_signInInputCode" placeholder="请输入签到码" maxlength="12" style="flex:1;" />
+                                <button class="btn btn-primary" @onclick="ScanSignIn" disabled="@_isSigningIn">签到</button>
+                            </div>
+                            <div class="validation-error">@_signInCodeError</div>
+                        </div>
+                    </div>
+                }
+            </Authorized>
+            <NotAuthorized>
+                <p style="color:#777;">登录后可报名、签到和留言。</p>
+            </NotAuthorized>
+        </AuthorizeView>
+
+        @if (!string.IsNullOrEmpty(_signInCode))
+        {
+            <div class="alert alert-success mt-16">
+                <strong>签到码：</strong>@_signInCode（10 分钟内有效）
+            </div>
+        }
+    </div>
+
+    @if (_showTakeDownConfirm)
+    {
+        <div class="card">
+            <h3>确认撤销活动</h3>
+            <p>撤销后活动将从可参与列表中下架，请确认该操作符合活动管理要求。</p>
+            <div class="flex-row">
+                <button class="btn btn-danger" @onclick="TakeDown" disabled="@_isLoading">确认撤销</button>
+                <button class="btn btn-secondary" @onclick="CancelTakeDownConfirm" disabled="@_isLoading">取消</button>
+            </div>
+        </div>
+    }
+
+    <div class="card">
+        <h3>留言</h3>
+        @if (_messages != null && _messages.Any())
+        {
+            @* 留言列表按后端返回顺序渲染，每条留言附带删除组件，由 DeleteButton 内部判断当前用户权限。 *@
+            @foreach (var msg in _messages)
+            {
+                <div style="padding:8px 0;border-bottom:1px solid #eee;">
+                    <strong>@msg.UserName</strong>
+                    <span style="color:#999;font-size:0.8rem;margin-left:8px;">@msg.CreateTime</span>
+                    <DeleteButton MessageId="@msg.Id" ActivityId="@_activity.Id" OnDeleted="LoadMessages" />
+                    <p style="margin:4px 0 0;">@msg.Content</p>
+                </div>
+            }
+        }
+        else
+        {
+            <p style="color:#999;">暂无留言</p>
+        }
+
+        <AuthorizeView>
+            <Authorized>
+                <div class="form-group mt-16">
+                    <textarea class="form-control" @bind="_newMessage" rows="2" placeholder="发表留言（最多 200 字）" maxlength="200"></textarea>
+                    <div class="validation-error">@_messageError</div>
+                    <button class="btn btn-primary mt-16" @onclick="AddMessage" disabled="@_isSending">发表</button>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+    </div>
+}
+else if (!_isLoading)
+{
+    <div class="empty-state">未找到活动</div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private ActivityDto? _activity;
+    private List<MessageDto>? _messages;
+    private string _newMessage = string.Empty;
+    private string _messageError = string.Empty;
+    private string _error = string.Empty;
+    private string _success = string.Empty;
+    private bool _isLoading;
+    private bool _isPageReady;
+    private bool _isSending;
+    private bool _isSigningIn;
+    private bool _showTakeDownConfirm;
+    private string _signInCode = string.Empty;
+    private string _signInInputCode = string.Empty;
+    private string _signInCodeError = string.Empty;
+    private string _currentUserName = string.Empty;
+    private string _currentEnrollUserId = string.Empty;
+    private bool _isCurrentUserEnrolled;
+    private int _currentUserRole;
+    private int _currentUserId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // 路由参数 Id 变化时 Blazor 可能复用同一个组件实例，因此这里每次进入详情页都刷新活动、留言和报名缓存。
+        ResetPageStateForRouteChange();
+        await LoadPageDataBeforeRender();
+    }
+
+    private void ResetPageStateForRouteChange()
+    {
+        _activity = null;
+        _messages = null;
+        _newMessage = string.Empty;
+        _messageError = string.Empty;
+        _error = string.Empty;
+        _success = string.Empty;
+        _signInCode = string.Empty;
+        _signInInputCode = string.Empty;
+        _signInCodeError = string.Empty;
+        _showTakeDownConfirm = false;
+        _isCurrentUserEnrolled = false;
+        _isPageReady = false;
+    }
+
+    private async Task LoadPageDataBeforeRender()
+    {
+        _isLoading = true;
+        _error = string.Empty;
+
+        try
+        {
+            // 先读取当前用户信息和本地报名状态，再并行加载活动详情与留言。
+            // 这样 Razor 首次渲染按钮时已经知道“当前用户是否报名”，不会短暂闪现错误按钮。
+            await LoadCurrentUser();
+            await LoadEnrollmentState();
+
+            var activityTask = LoadActivity();
+            var messagesTask = LoadMessages();
+            await Task.WhenAll(activityTask, messagesTask);
+        }
+        finally
+        {
+            _isLoading = false;
+            _isPageReady = true;
+        }
+    }
+
+    private async Task LoadCurrentUser()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _currentUserName = state.User.Identity?.Name ?? string.Empty;
+
+        // 角色使用后端约定：1 普通用户，2 管理员，3 超级管理员。
+        var roleClaim = state.User.FindFirst(ClaimTypes.Role);
+        _currentUserRole = int.TryParse(roleClaim?.Value, out var role) ? role : 0;
+
+        var userIdClaim = state.User.FindFirst(ClaimTypes.NameIdentifier) ?? state.User.FindFirst("UserId");
+        _currentUserId = int.TryParse(userIdClaim?.Value, out var userId) ? userId : 0;
+
+        // Enroll/DoEnroll 的 Swagger 参数名是 userId 且类型为 string。
+        // 后端版本可能返回数字 ID，也可能只返回用户名；这里优先数字 ID，缺失时退回用户名。
+        _currentEnrollUserId = state.User.FindFirst("EnrollUserId")?.Value
+            ?? (_currentUserId > 0 ? _currentUserId.ToString() : _currentUserName);
+
+    }
+
+    private async Task LoadActivity()
+    {
+        try
+        {
+            // 当前后端只暴露活动列表接口，因此详情页从列表中按 Id 定位目标活动。
+            var activities = await ApiService.GetActivitysList();
+            _activity = activities?.FirstOrDefault(a => a.Id == Id);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task LoadMessages()
+    {
+        try
+        {
+            _messages = await ApiService.GetMessagesByActivity(Id);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private bool CanEnroll()
+    {
+        // 只在报名期内且名额未满时展示报名入口；实际是否重复报名由后端最终校验。
+        // _isCurrentUserEnrolled 来自浏览器本地缓存，用于补足后端缺少“查询我是否已报名”活动接口的限制。
+        return !_isCurrentUserEnrolled
+            && IsStatus("报名中")
+            && _activity?.CurrentCount < _activity?.MaxCount;
+    }
+
+    private bool CanCancelEnroll()
+    {
+        // 只要本地识别到当前用户已报名，就允许用户发起取消报名。
+        // 后端仍会做最终权限和状态校验，前端这里只负责控制入口显隐。
+        return _isCurrentUserEnrolled;
+    }
+
+    private bool CanScanSignIn()
+    {
+        return _isCurrentUserEnrolled;
+    }
+
+    private bool CanGenerateSignInCode()
+    {
+        // 签到码只允许活动发布者在活动进行中生成，避免普通参与者提前生成或扩散签到码。
+        return !string.IsNullOrEmpty(_currentUserName)
+            && _activity?.PublisherUserName == _currentUserName
+            && IsStatus("进行中");
+    }
+
+    private bool CanTakeDownActivity()
+    {
+        // 活动发布者可以撤销自己的活动；管理员可处理异常活动。
+        return _activity != null
+            && (_activity.PublisherUserName == _currentUserName || IsAdmin());
+    }
+
+    private bool IsAdmin() => _currentUserRole >= 2;
+
+    private async Task DoEnroll()
+    {
+        _isLoading = true;
+        _error = string.Empty;
+        _success = string.Empty;
+
+        try
+        {
+            // 报名接口需要一个稳定的用户标识；缺失时直接中断，避免向后端发送空 userId。
+            if (!EnsureCurrentUserId())
+            {
+                return;
+            }
+
+            // 报名成功后立即写入本地缓存，详情页的取消报名和签到入口会基于该状态显示。
+            // 随后刷新活动详情，让报名人数等后端统计字段尽量保持最新。
+            await ApiService.DoEnroll(Id, _currentEnrollUserId);
+            await EnrollmentCache.MarkEnrolledAsync(GetEnrollmentUserKey(), Id);
+            _isCurrentUserEnrolled = true;
+            _success = "报名成功";
+            await RefreshActivityAfterEnrollmentChange();
+        }
+        catch (Exception ex)
+        {
+            if (IsAlreadyEnrolledMessage(ex.Message))
+            {
+                // 用户可能之前已经报名，但本地缓存丢失或浏览器换过设备。
+                // 遇到后端“已报名/重复报名”提示时，把本地状态修正为已报名，避免继续显示报名按钮。
+                await EnrollmentCache.MarkEnrolledAsync(GetEnrollmentUserKey(), Id);
+                _isCurrentUserEnrolled = true;
+                _success = "已检测到你已报名该活动";
+                _error = string.Empty;
+                await RefreshActivityAfterEnrollmentChange();
+            }
+            else
+            {
+                _error = ex.Message;
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CancelEnroll()
+    {
+        _isLoading = true;
+        _error = string.Empty;
+        _success = string.Empty;
+
+        try
+        {
+            // 取消报名成功后必须同步清理本地缓存，否则页面会继续认为当前用户已报名。
+            // 刷新活动详情用于更新报名人数，同时重新计算按钮显隐。
+            await ApiService.CancelEnroll(Id);
+            await EnrollmentCache.MarkCanceledAsync(GetEnrollmentUserKey(), Id);
+            _isCurrentUserEnrolled = false;
+            _success = "已取消报名";
+            await RefreshActivityAfterEnrollmentChange();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task GenerateCode()
+    {
+        _isLoading = true;
+        _error = string.Empty;
+        _success = string.Empty;
+
+        try
+        {
+            _signInCode = await ApiService.GenerateSignInCode(Id) ?? string.Empty;
+            _success = "签到码生成成功";
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ScanSignIn()
+    {
+        _signInCodeError = string.IsNullOrWhiteSpace(_signInInputCode) ? "请输入签到码" : string.Empty;
+        if (!string.IsNullOrEmpty(_signInCodeError))
+        {
+            return;
+        }
+
+        _isSigningIn = true;
+        _error = string.Empty;
+        _success = string.Empty;
+
+        try
+        {
+            await ApiService.ScanSignIn(_signInInputCode.Trim());
+            _signInInputCode = string.Empty;
+            _success = "签到成功";
+            await LoadActivity();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isSigningIn = false;
+        }
+    }
+
+    private void ShowTakeDownConfirm()
+    {
+        _showTakeDownConfirm = true;
+    }
+
+    private void CancelTakeDownConfirm()
+    {
+        _showTakeDownConfirm = false;
+    }
+
+    private async Task TakeDown()
+    {
+        _isLoading = true;
+        _error = string.Empty;
+        _success = string.Empty;
+
+        try
+        {
+            await ApiService.TakeDownActivity(Id);
+            if (_activity != null)
+            {
+                await ActivityCache.MarkTakenDownAsync(_activity);
+            }
+
+            _success = "活动已撤销";
+            Navigation.NavigateTo("/activities");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+            _showTakeDownConfirm = false;
+        }
+    }
+
+    private async Task AddMessage()
+    {
+        _messageError = ValidateMessage(_newMessage);
+        if (!string.IsNullOrEmpty(_messageError))
+        {
+            return;
+        }
+
+        _isSending = true;
+        _error = string.Empty;
+        _success = string.Empty;
+
+        try
+        {
+            await ApiService.AddMessage(Id, _newMessage.Trim());
+            _newMessage = string.Empty;
+            _success = "留言发表成功";
+            await LoadMessages();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isSending = false;
+        }
+    }
+
+    private static string ValidateMessage(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return "请输入留言内容";
+        }
+
+        return message.Trim().Length > 200 ? "留言不能超过 200 字" : string.Empty;
+    }
+
+    private bool EnsureCurrentUserId()
+    {
+        if (!string.IsNullOrWhiteSpace(_currentEnrollUserId))
+        {
+            return true;
+        }
+
+        _error = "当前登录信息缺少报名用户标识，请退出后重新登录。";
+        return false;
+    }
+
+    private async Task LoadEnrollmentState()
+    {
+        // 后端当前没有提供“当前用户是否已报名某活动”的查询接口。
+        // 因此详情页用 EnrollmentClientCache 保存报名/取消报名结果，作为按钮和签到区域显隐依据。
+        if (string.IsNullOrWhiteSpace(GetEnrollmentUserKey()))
+        {
+            _isCurrentUserEnrolled = false;
+            return;
+        }
+
+        _isCurrentUserEnrolled = await EnrollmentCache.IsEnrolledAsync(GetEnrollmentUserKey(), Id);
+    }
+
+    private async Task RefreshActivityAfterEnrollmentChange()
+    {
+        _isLoading = true;
+
+        try
+        {
+            // 报名状态和活动人数来自不同来源：报名状态读本地缓存，人数读后端活动列表。
+            // 每次报名/取消报名后都刷新两者，避免按钮状态和人数摘要不同步。
+            await LoadEnrollmentState();
+            await LoadActivity();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private string GetEnrollmentUserKey()
+    {
+        return !string.IsNullOrWhiteSpace(_currentEnrollUserId)
+            ? _currentEnrollUserId
+            : _currentUserName;
+    }
+
+    private static bool IsAlreadyEnrolledMessage(string message)
+    {
+        return message.Contains("已报名", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("重复报名", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("已经报名", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("already", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsStatus(string expectedStatus)
+    {
+        // 后端返回的状态文案用于驱动按钮显隐；这里统一做空值处理，避免 Razor 中散落字符串判断。
+        return string.Equals(_activity?.DisplayStatusText, expectedStatus, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string GetStatusBadgeClass(string? status) => status switch
+    {
+        "预热中" => "badge-info",
+        "报名中" => "badge-success",
+        "待开始" => "badge-warning",
+        "进行中" => "badge-success",
+        "已结束" => "badge-danger",
+        "已驳回" => "badge-danger",
+        _ => "badge-info"
+    };
+}

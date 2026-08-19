@@ -1,0 +1,35 @@
+从 D:\backend\CampusActivityApi\CampusActivityApi\Properties\launchSettings.json 使用启动设置...
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (7ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (85ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      
+      IF EXISTS
+          (SELECT *
+           FROM [sys].[objects] o
+           WHERE [o].[type] = 'U'
+           AND [o].[is_ms_shipped] = 0
+           AND NOT EXISTS (SELECT *
+               FROM [sys].[extended_properties] AS [ep]
+               WHERE [ep].[major_id] = [o].[object_id]
+                   AND [ep].[minor_id] = 0
+                   AND [ep].[class] = 1
+                   AND [ep].[name] = N'microsoft_database_tools_support'
+          )
+      )
+      SELECT 1 ELSE SELECT 0
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (131ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      IF OBJECT_ID(N'dbo.Activity', N'U') IS NOT NULL
+   AND OBJECT_ID(N'dbo.CK_Activity_AuditStatus', N'C') IS NOT NULL
+BEGIN
+    ALTER TABLE [Activity] DROP CONSTRAINT [CK_Activity_AuditStatus];
+END
+
+IF OBJECT_ID(N'dbo.Activity', N'U') IS NOT NULL
+   AND OBJECT_ID(N'dbo.CK_Activity_AuditStatus', N'C') IS NULL
+BEGIN
+    ALTER TABLE [Activity]
+    ADD CONSTRAINT [CK_Activity_AuditStatus] CHECK ([AuditStatus] IN (0, 1, 2));
+END

@@ -1,0 +1,33 @@
+@inject ApiService ApiService
+@inject AuthenticationStateProvider AuthStateProvider
+@using CampusActivityManagement.Services
+
+@* 留言删除按钮：初始化时根据当前登录用户和角色判断是否显示；真正的删除权限仍由后端再次校验。 *@
+@if (_canDelete)
+{
+    <button class="btn btn-danger" style="padding:2px 8px;font-size:12px;float:right;" 
+            @onclick="HandleDelete" @onclick:preventDefault>🗑️</button>
+}
+
+@code {
+    [Parameter] public int MessageId { get; set; }
+    [Parameter] public int ActivityId { get; set; }
+    [Parameter] public EventCallback OnDeleted { get; set; }
+
+    private bool _canDelete;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userName = state.User.Identity?.Name;
+        var roleClaim = state.User.FindFirst(ClaimTypes.Role);
+        var role = roleClaim != null ? int.Parse(roleClaim.Value) : 0;
+        _canDelete = role >= 2;
+    }
+
+    private async Task HandleDelete()
+    {
+        try { await ApiService.DeleteMessage(ActivityId, MessageId); await OnDeleted.InvokeAsync(); }
+        catch { }
+    }
+}

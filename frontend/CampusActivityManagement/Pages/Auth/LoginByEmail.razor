@@ -1,0 +1,127 @@
+@page "/login-by-email"
+@implements IDisposable
+@inject ApiService ApiService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@using CampusActivityManagement.Services
+
+@* 邮箱验证码登录页：先发送验证码，再用邮箱和验证码换取 Token；实现 IDisposable 是为了释放倒计时定时器。 *@
+<PageTitle>邮箱验证码登录</PageTitle>
+
+<div class="card" style="max-width: 400px; margin: 40px auto;">
+    <h3>邮箱验证码登录</h3>
+
+    <ErrorMessage Message="@_error" OnDismiss="() => _error = string.Empty" />
+    <SuccessMessage Message="@_success" OnDismiss="() => _success = string.Empty" />
+
+    <div class="form-group">
+        <label>邮箱</label>
+        <input class="form-control" @bind="_email" placeholder="请输入邮箱" />
+        <div class="validation-error">@_emailError</div>
+    </div>
+    <div class="form-group">
+        <label>验证码</label>
+        <div style="display: flex; gap: 8px;">
+            <input class="form-control" @bind="_code" placeholder="4 位验证码" maxlength="4" style="flex:1;" />
+            <button class="btn btn-secondary" @onclick="SendCode" disabled="@_isSending">
+                @(_isSending ? $"发送中...({_countdown}s)" : "发送验证码")
+            </button>
+        </div>
+        <div class="validation-error">@_codeError</div>
+    </div>
+
+    <button class="btn btn-primary" @onclick="HandleLogin" disabled="@_isLoading">
+        @(_isLoading ? "登录中..." : "登录")
+    </button>
+    <div style="margin-top: 16px; font-size: 0.9rem;">
+        <a href="/login">密码登录</a>
+    </div>
+</div>
+
+@code {
+    private string _email = string.Empty;
+    private string _code = string.Empty;
+    private string _error = string.Empty;
+    private string _success = string.Empty;
+    private bool _isLoading;
+    private bool _isSending;
+    private int _countdown;
+    private string _emailError = string.Empty;
+    private string _codeError = string.Empty;
+    private Timer? _timer;
+
+    private bool Validate()
+    {
+        _emailError = string.IsNullOrWhiteSpace(_email) ? "请输入邮箱" : string.Empty;
+        _codeError = string.IsNullOrWhiteSpace(_code) ? "请输入验证码" : string.Empty;
+        return string.IsNullOrEmpty(_emailError) && string.IsNullOrEmpty(_codeError);
+    }
+
+    private async Task SendCode()
+    {
+        if (string.IsNullOrWhiteSpace(_email))
+        {
+            _emailError = "请输入邮箱";
+            return;
+        }
+
+        _isSending = true;
+        _error = string.Empty;
+
+        try
+        {
+            await ApiService.SendEmailCode(_email);
+            _success = "验证码已发送";
+            _countdown = 60;
+            _timer = new Timer(async _ =>
+            {
+                _countdown--;
+                if (_countdown <= 0)
+                {
+                    _isSending = false;
+                    _timer?.Dispose();
+                }
+
+                await InvokeAsync(StateHasChanged);
+            }, null, 1000, 1000);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _isSending = false;
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        if (!Validate())
+        {
+            return;
+        }
+
+        _isLoading = true;
+        _error = string.Empty;
+
+        try
+        {
+            var result = await ApiService.LoginByEmail(_email, _code);
+            if (result != null)
+            {
+                var authProvider = (CustomAuthStateProvider)AuthStateProvider;
+                ApiService.SetToken(result.Token);
+                await authProvider.SetTokenAsync(result.Token, result);
+                Navigation.NavigateTo("/");
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

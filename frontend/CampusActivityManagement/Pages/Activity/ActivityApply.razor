@@ -1,0 +1,180 @@
+@page "/apply-activity"
+@attribute [Authorize]
+@inject ApiService ApiService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ActivityClientCache ActivityCache
+
+@* 活动申请页：登录用户填写活动信息并提交审核。提交成功后同时写入本地缓存，便于“我的活动”立即展示待审核记录。 *@
+<PageTitle>申请活动</PageTitle>
+
+<div class="card" style="max-width:600px;margin:20px auto;">
+    <h3>申请活动</h3>
+    <ErrorMessage Message="@_error" OnDismiss="() => _error = string.Empty" />
+    <SuccessMessage Message="@_success" OnDismiss="() => _success = string.Empty" />
+
+    <div class="form-group">
+        <label>活动名称 *</label>
+        <input class="form-control" @bind="_title" placeholder="不超过 100 字" maxlength="100" />
+        <div class="validation-error">@_titleError</div>
+    </div>
+
+    <div class="form-group">
+        <label>活动详情 *</label>
+        <textarea class="form-control" @bind="_content" rows="4" placeholder="请输入活动详细内容"></textarea>
+        <div class="validation-error">@_contentError</div>
+    </div>
+
+    <div class="form-group">
+        <label>最大参与人数 *</label>
+        <input class="form-control" type="number" @bind="_maxCount" min="1" />
+        <div class="validation-error">@_maxCountError</div>
+    </div>
+
+    <div class="form-group">
+        <label>活动开始时间 *</label>
+        <input class="form-control" type="datetime-local" value="@FormatForInput(_activityStartTime)" @onchange="e => TryParseDateTime(e, v => _activityStartTime = v)" />
+        <div class="validation-error">@_activityStartTimeError</div>
+    </div>
+
+    <div class="form-group">
+        <label>活动结束时间 *</label>
+        <input class="form-control" type="datetime-local" value="@FormatForInput(_activityEndTime)" @onchange="e => TryParseDateTime(e, v => _activityEndTime = v)" />
+        <div class="validation-error">@_activityEndTimeError</div>
+    </div>
+
+    <div class="form-group">
+        <label>报名开始时间 *</label>
+        <input class="form-control" type="datetime-local" value="@FormatForInput(_enrollStartTime)" @onchange="e => TryParseDateTime(e, v => _enrollStartTime = v)" />
+        <div class="validation-error">@_enrollStartTimeError</div>
+    </div>
+
+    <div class="form-group">
+        <label>报名结束时间 *</label>
+        <input class="form-control" type="datetime-local" value="@FormatForInput(_enrollEndTime)" @onchange="e => TryParseDateTime(e, v => _enrollEndTime = v)" />
+        <div class="validation-error">@_enrollEndTimeError</div>
+    </div>
+
+    <button class="btn btn-primary" @onclick="HandleSubmit" disabled="@_isLoading">
+        @(_isLoading ? "提交中..." : "提交申请")
+    </button>
+</div>
+
+@code {
+    private string _title = string.Empty;
+    private string _content = string.Empty;
+    private int _maxCount = 50;
+    private DateTime? _activityStartTime;
+    private DateTime? _activityEndTime;
+    private DateTime? _enrollStartTime;
+    private DateTime? _enrollEndTime;
+    private string _error = string.Empty;
+    private string _success = string.Empty;
+    private bool _isLoading;
+    private string _titleError = string.Empty;
+    private string _contentError = string.Empty;
+    private string _maxCountError = string.Empty;
+    private string _activityStartTimeError = string.Empty;
+    private string _activityEndTimeError = string.Empty;
+    private string _enrollStartTimeError = string.Empty;
+    private string _enrollEndTimeError = string.Empty;
+    private string _currentUserName = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _currentUserName = state.User.Identity?.Name ?? string.Empty;
+    }
+
+    private static string FormatDateTime(DateTime? dt)
+    {
+        // Swagger 的 Activity 字段是 JSON date-time；ISO 格式可被后端 DateTime 稳定解析。
+        return dt?.ToString("yyyy-MM-ddTHH:mm:ss") ?? string.Empty;
+    }
+
+    private static string FormatForInput(DateTime? dt)
+    {
+        // datetime-local 控件需要 yyyy-MM-ddTHH:mm 格式，提交前再转换为后端格式。
+        return dt?.ToString("yyyy-MM-ddTHH:mm") ?? string.Empty;
+    }
+
+    private static void TryParseDateTime(ChangeEventArgs e, Action<DateTime?> setter)
+    {
+        var value = e.Value?.ToString();
+        setter(DateTime.TryParse(value, out var parsed) ? parsed : null);
+    }
+
+    private bool Validate()
+    {
+        _titleError = string.IsNullOrWhiteSpace(_title) ? "请输入活动名称" : string.Empty;
+        _contentError = string.IsNullOrWhiteSpace(_content) ? "请输入活动详情" : string.Empty;
+        _maxCountError = _maxCount < 1 ? "人数至少为 1" : string.Empty;
+        _activityStartTimeError = _activityStartTime == null ? "请选择活动开始时间" : string.Empty;
+        _activityEndTimeError = _activityEndTime == null ? "请选择活动结束时间" : string.Empty;
+        _enrollStartTimeError = _enrollStartTime == null ? "请选择报名开始时间" : string.Empty;
+        _enrollEndTimeError = _enrollEndTime == null ? "请选择报名结束时间" : string.Empty;
+
+        if (_activityStartTime != null && _activityEndTime != null && _activityEndTime <= _activityStartTime)
+        {
+            _activityEndTimeError = "活动结束时间必须晚于开始时间";
+        }
+
+        if (_enrollStartTime != null && _enrollEndTime != null && _enrollEndTime <= _enrollStartTime)
+        {
+            _enrollEndTimeError = "报名结束时间必须晚于开始时间";
+        }
+
+        if (_enrollEndTime != null && _activityStartTime != null && _enrollEndTime >= _activityStartTime)
+        {
+            _enrollEndTimeError = "报名结束时间必须早于活动开始时间";
+        }
+
+        return string.IsNullOrEmpty(_titleError)
+            && string.IsNullOrEmpty(_contentError)
+            && string.IsNullOrEmpty(_maxCountError)
+            && string.IsNullOrEmpty(_activityStartTimeError)
+            && string.IsNullOrEmpty(_activityEndTimeError)
+            && string.IsNullOrEmpty(_enrollStartTimeError)
+            && string.IsNullOrEmpty(_enrollEndTimeError);
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (!Validate())
+        {
+            return;
+        }
+
+        _isLoading = true;
+        _error = string.Empty;
+        _success = string.Empty;
+
+        try
+        {
+            var request = new ActivityApplyRequest
+            {
+                Title = _title.Trim(),
+                Content = _content.Trim(),
+                PublisherUserName = _currentUserName,
+                MaxCount = _maxCount,
+                ActivityStartTime = FormatDateTime(_activityStartTime),
+                ActivityEndTime = FormatDateTime(_activityEndTime),
+                EnrollStartTime = FormatDateTime(_enrollStartTime),
+                EnrollEndTime = FormatDateTime(_enrollEndTime)
+            };
+
+            await ApiService.ApplyActivity(request);
+            await ActivityCache.UpsertSubmittedApplyAsync(request);
+            _success = "申请提交成功";
+            Navigation.NavigateTo("/my-applies");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

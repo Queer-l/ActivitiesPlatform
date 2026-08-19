@@ -1,0 +1,118 @@
+@page "/activities"
+@inject ApiService ApiService
+
+@* 活动列表页：展示后端返回的可见活动，并提供进入活动详情和申请活动的入口。 *@
+<PageTitle>活动列表</PageTitle>
+
+<div class="flex-between mb-16">
+    <h2>活动列表</h2>
+    <AuthorizeView>
+        <Authorized>
+            <a href="/apply-activity" class="btn btn-primary">申请活动</a>
+        </Authorized>
+    </AuthorizeView>
+</div>
+
+<ErrorMessage Message="@_error" OnDismiss="() => _error = string.Empty" />
+<LoadingOverlay IsLoading="_isLoading" />
+
+@if (!_isLoading && (_activities == null || !_activities.Any()))
+{
+    @* 空列表也使用表格结构展示，和有数据时的字段保持一致，用户能明确知道当前只是没有活动而不是页面加载失败。 *@
+    <table class="table empty-table">
+        <thead>
+            <tr>
+                <th>活动名称</th>
+                <th>状态</th>
+                <th>发布人</th>
+                <th>报名人数</th>
+                <th>活动时间</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td colspan="5" class="table-empty-message">暂无活动</td>
+            </tr>
+        </tbody>
+    </table>
+}
+else if (_activities != null)
+{
+    @* 活动列表由后端 GetActivitysList 接口返回，只包含普通用户当前可见的活动。每张卡片都提供详情页入口。 *@
+    @foreach (var activity in _activities)
+    {
+        <div class="card">
+            <div class="flex-between">
+                <h3>
+                    <a href="/activity/@activity.Id" style="text-decoration:none;color:#333;">@activity.Title</a>
+                </h3>
+                <span class="badge @GetStatusBadgeClass(activity.DisplayStatusText)">@activity.DisplayStatusText</span>
+            </div>
+            <p style="color:#666;margin:8px 0;">@GetSummary(activity.Content)</p>
+            @* 这里集中展示报名/签到/时间等关键摘要，方便用户在进入详情页前判断是否还能报名、是否接近满员。 *@
+            <div class="flex-row" style="font-size:0.85rem;color:#888;">
+                <span>发布者：@activity.PublisherUserName</span>
+                <span>报名：@activity.CurrentCount/@activity.MaxCount 人</span>
+                <span>签到：@activity.SignInCount 人</span>
+                <span>活动：@activity.ActivityStartTime ~ @activity.ActivityEndTime</span>
+                <span>报名时间：@activity.EnrollStartTime ~ @activity.EnrollEndTime</span>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private List<ActivityDto>? _activities;
+    private string _error = string.Empty;
+    private bool _isLoading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadActivities();
+    }
+
+    private async Task LoadActivities()
+    {
+        _isLoading = true;
+        _error = string.Empty;
+
+        try
+        {
+            // 活动列表页只展示后端判定为“当前可见”的活动集合。
+            // 待审核、已驳回、已下架等状态不在这里兜底展示，它们会进入“我的活动”或审核页面。
+            _activities = await ApiService.GetActivitysList();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private static string GetSummary(string? content)
+    {
+        // 列表页只需要内容摘要，完整活动说明放在详情页展示。
+        // 这里保留前 100 个字符，避免长文本把活动卡片撑得过高，影响列表扫描效率。
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return string.Empty;
+        }
+
+        return content.Length > 100 ? content[..100] + "..." : content;
+    }
+
+    private static string GetStatusBadgeClass(string? status) => status switch
+    {
+        // 状态文案由后端返回；前端只负责映射颜色，不重新计算活动业务状态。
+        "预热中" => "badge-info",
+        "报名中" => "badge-success",
+        "待开始" => "badge-warning",
+        "进行中" => "badge-success",
+        "已结束" => "badge-danger",
+        "已驳回" => "badge-danger",
+        _ => "badge-info"
+    };
+}

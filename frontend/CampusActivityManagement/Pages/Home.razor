@@ -1,0 +1,100 @@
+@page "/"
+@inject ApiService ApiService
+
+@* 首页：展示系统入口和最新活动列表。活动数据来自后端活动列表接口，页面只取前 5 条作为首页预览。 *@
+<PageTitle>校园活动管理系统</PageTitle>
+
+<div class="page-hero">
+    <h1>校园活动管理系统</h1>
+    <p>发现活动、提交申请、完成报名和签到，让校园活动管理更清楚。</p>
+</div>
+
+<ErrorMessage Message="@_error" OnDismiss="() => _error = string.Empty" />
+
+<div class="action-grid">
+    <div class="card action-card">
+        <h3>活动列表</h3>
+        <p>浏览所有已发布的活动</p>
+        <a href="/activities" class="btn btn-primary">查看活动</a>
+    </div>
+
+    <AuthorizeView>
+        <Authorized>
+            <div class="card action-card">
+                <h3>申请活动</h3>
+                <p>发布新的校园活动</p>
+                <a href="/apply-activity" class="btn btn-primary">申请活动</a>
+            </div>
+        </Authorized>
+        <NotAuthorized>
+            <div class="card action-card">
+                <h3>登录系统</h3>
+                <p>登录后参与活动报名和签到</p>
+                <a href="/login" class="btn btn-primary">立即登录</a>
+            </div>
+        </NotAuthorized>
+    </AuthorizeView>
+</div>
+
+<div class="section-heading">
+    <h2>最新活动</h2>
+</div>
+<LoadingOverlay IsLoading="_isLoading" />
+
+@if (_recentActivities != null && _recentActivities.Any())
+{
+    @foreach (var activity in _recentActivities.Take(5))
+    {
+        <div class="card activity-card">
+            <div class="flex-between">
+                <h3><a href="/activity/@activity.Id">@activity.Title</a></h3>
+                <span class="badge @GetStatusBadgeClass(activity.DisplayStatusText)">@activity.DisplayStatusText</span>
+            </div>
+            <div class="activity-meta">
+                <span>发布者：@activity.PublisherUserName</span>
+                <span>人数：@activity.CurrentCount/@activity.MaxCount</span>
+                <span>时间：@activity.ActivityStartTime ~ @activity.ActivityEndTime</span>
+            </div>
+        </div>
+    }
+}
+else if (!_isLoading)
+{
+    <div class="empty-state">暂无活动</div>
+}
+
+@code {
+    private List<ActivityDto>? _recentActivities;
+    private string _error = string.Empty;
+    private bool _isLoading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isLoading = true;
+
+        try
+        {
+            // 首页只展示前 5 条活动，完整列表仍由活动列表页负责承载。
+            _recentActivities = await ApiService.GetActivitysList();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private static string GetStatusBadgeClass(string? status) => status switch
+    {
+        "预热中" => "badge-info",
+        "报名中" => "badge-success",
+        "待开始" => "badge-warning",
+        "进行中" => "badge-success",
+        "已结束" => "badge-danger",
+        "已驳回" => "badge-danger",
+        _ => "badge-info"
+    };
+}

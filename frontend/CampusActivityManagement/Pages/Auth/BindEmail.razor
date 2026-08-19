@@ -1,0 +1,72 @@
+@page "/bind-email"
+@attribute [Authorize]
+@inject ApiService ApiService
+@inject AuthenticationStateProvider AuthStateProvider
+@using CampusActivityManagement.Services
+
+@* 绑定邮箱页：登录用户输入邮箱并完成验证码校验，绑定成功后保留当前登录状态。 *@
+<PageTitle>绑定邮箱</PageTitle>
+
+<div class="card" style="max-width: 400px; margin: 40px auto;">
+    <h3>📧 绑定邮箱</h3>
+    <ErrorMessage Message="@_error" OnDismiss="() => _error = null" />
+    <SuccessMessage Message="@_success" OnDismiss="() => _success = null" />
+
+    <div class="form-group">
+        <label>用户名</label>
+        <input class="form-control" @bind="_userName" disabled />
+    </div>
+    <div class="form-group">
+        <label>邮箱</label>
+        <input class="form-control" @bind="_email" placeholder="请输入要绑定的邮箱" />
+        <div class="validation-error">@_emailError</div>
+    </div>
+    <div class="form-group">
+        <label>验证码</label>
+        <div style="display: flex; gap: 8px;">
+            <input class="form-control" @bind="_code" placeholder="4位验证码" maxlength="4" style="flex:1;" />
+            <button class="btn btn-secondary" @onclick="SendCode" disabled="@_isSending">发送验证码</button>
+        </div>
+        <div class="validation-error">@_codeError</div>
+    </div>
+
+    <button class="btn btn-primary" @onclick="HandleBind" disabled="@_isLoading">绑定</button>
+</div>
+
+@code {
+    private string _userName = "";
+    private string _email = "";
+    private string _code = "";
+    private string _error = "";
+    private string _success = "";
+    private bool _isLoading;
+    private bool _isSending;
+    private string _emailError = "";
+    private string _codeError = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _userName = state.User.Identity?.Name ?? "";
+    }
+
+    private async Task SendCode()
+    {
+        if (string.IsNullOrWhiteSpace(_email)) { _emailError = "请输入邮箱"; return; }
+        _isSending = true;
+        try { await ApiService.SendEmailCode(_email); _success = "验证码已发送"; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _isSending = false; }
+    }
+
+    private async Task HandleBind()
+    {
+        _emailError = string.IsNullOrWhiteSpace(_email) ? "请输入邮箱" : "";
+        _codeError = string.IsNullOrWhiteSpace(_code) ? "请输入验证码" : "";
+        if (!string.IsNullOrEmpty(_emailError) || !string.IsNullOrEmpty(_codeError)) return;
+        _isLoading = true; _error = "";
+        try { await ApiService.BindEmail(_userName, _email, _code); _success = "绑定成功"; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _isLoading = false; }
+    }
+}

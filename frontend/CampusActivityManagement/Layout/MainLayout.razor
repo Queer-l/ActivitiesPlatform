@@ -1,0 +1,69 @@
+@inherits LayoutComponentBase
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@using CampusActivityManagement.Services
+
+@* 主布局：提供顶部导航、登录/退出入口和页面主体区域。导航项会根据 AuthorizeView 和角色自动显隐。 *@
+<div class="app-container">
+    <nav class="top-nav">
+        <div class="nav-brand" role="button" tabindex="0" @onclick="GoHome">
+            <span class="brand-mark">活动</span>
+            <span>校园活动管理系统</span>
+        </div>
+        <button class="nav-toggle" type="button" @onclick="ToggleMenu" aria-label="切换导航菜单">
+            菜单
+        </button>
+        <div class="nav-links @(_isMenuOpen ? "is-open" : string.Empty)">
+            <AuthorizeView>
+                <Authorized>
+                    <NavLink class="nav-link" href="/activities" Match="NavLinkMatch.Prefix">活动列表</NavLink>
+                    <NavLink class="nav-link" href="/my-applies" Match="NavLinkMatch.Prefix">我的申请</NavLink>
+                    <AuthorizeView Roles="2,3,02,03" Context="adminAuth">
+                        <NavLink class="nav-link" href="/admin/audit" Match="NavLinkMatch.Prefix">活动审核</NavLink>
+                        <NavLink class="nav-link" href="/admin/users" Match="NavLinkMatch.Prefix">用户管理</NavLink>
+                        <NavLink class="nav-link" href="/admin/pwd-reset" Match="NavLinkMatch.Prefix">密码重置</NavLink>
+                    </AuthorizeView>
+                </Authorized>
+            </AuthorizeView>
+        </div>
+        <div class="nav-user">
+            <AuthorizeView>
+                <Authorized>
+                    <span class="user-name">@context.User.Identity?.Name</span>
+                    <button class="btn-logout" @onclick="Logout">退出</button>
+                </Authorized>
+                <NotAuthorized>
+                    <NavLink class="nav-link" href="/login">登录</NavLink>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+    </nav>
+    <main class="main-content">
+        @Body
+    </main>
+</div>
+
+@code {
+    private bool _isMenuOpen;
+
+    private void GoHome()
+    {
+        // 品牌入口始终回到首页，并顺手收起移动端菜单。
+        Navigation.NavigateTo("/");
+        _isMenuOpen = false;
+    }
+
+    private void ToggleMenu()
+    {
+        _isMenuOpen = !_isMenuOpen;
+    }
+
+    private async Task Logout()
+    {
+        // 退出时清理本地认证信息，避免下次进入时继续使用旧 Token。
+        var authProvider = (CustomAuthStateProvider)AuthStateProvider;
+        await authProvider.ClearTokenAsync();
+        _isMenuOpen = false;
+        Navigation.NavigateTo("/login");
+    }
+}

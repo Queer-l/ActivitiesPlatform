@@ -1,0 +1,89 @@
+@page "/admin/pwd-reset"
+@attribute [Authorize(Roles = "2,3")]
+@inject ApiService ApiService
+
+@* 密码重置审核页：管理员处理用户提交的人工重置密码申请，支持通过和带理由驳回。 *@
+<PageTitle>密码重置审核</PageTitle>
+
+<h2>🔑 密码重置审核</h2>
+<ErrorMessage Message="@_error" OnDismiss="() => _error = null" />
+<SuccessMessage Message="@_success" OnDismiss="() => _success = null" />
+<LoadingOverlay IsLoading="_isLoading" />
+
+@if (_applies != null && _applies.Any())
+{
+    <table class="table">
+        <thead><tr><th>ID</th><th>用户名</th><th>真实姓名</th><th>理由</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody>
+        @foreach (var a in _applies)
+        {
+            <tr>
+                <td>@a.Id</td><td>@a.UserName</td><td>@a.RealName</td>
+                <td>@a.Reason</td>
+                <td>@(a.Status == 0 ? "待审核" : a.Status == 1 ? "已通过" : "已拒绝")</td>
+                <td>
+                    @if (a.Status == 0)
+                    {
+                        <button class="btn btn-success" @onclick="() => Handle(a.Id, true)" style="padding:4px 8px;font-size:12px;">✅ 通过</button>
+                        <button class="btn btn-danger" @onclick="() => ShowReject(a.Id)" style="padding:4px 8px;font-size:12px;">❌ 驳回</button>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+
+    @if (_showReject)
+    {
+        <div class="card">
+            <h4>驳回申请 #@_rejectId</h4>
+            <div class="form-group">
+                <label>驳回理由</label>
+                <textarea class="form-control" @bind="_rejectReason" rows="3"></textarea>
+                <div class="validation-error">@_rejectReasonError</div>
+            </div>
+            <div class="flex-row">
+                <button class="btn btn-danger" @onclick="ConfirmReject">确认驳回</button>
+                <button class="btn btn-secondary" @onclick="CancelReject">取消</button>
+            </div>
+        </div>
+    }
+}
+else if (!_isLoading) { <p>暂无密码重置申请</p> }
+
+@code {
+    private List<PwdResetApplyDto>? _applies;
+    private string _error = ""; private string _success = ""; private bool _isLoading;
+    private bool _showReject; private int _rejectId;
+    private string _rejectReason = ""; private string _rejectReasonError = "";
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _isLoading = true; _error = "";
+        try { _applies = await ApiService.GetPwdResetApplies(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _isLoading = false; }
+    }
+
+    private async Task Handle(int id, bool isPass)
+    {
+        _isLoading = true; _error = "";
+        try { await ApiService.HandlePwdResetApply(id, isPass); _success = "处理成功"; await Load(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _isLoading = false; }
+    }
+
+    private void ShowReject(int id) { _showReject = true; _rejectId = id; _rejectReason = ""; _rejectReasonError = ""; }
+    private void CancelReject() { _showReject = false; }
+
+    private async Task ConfirmReject()
+    {
+        if (string.IsNullOrWhiteSpace(_rejectReason)) { _rejectReasonError = "请输入驳回理由"; return; }
+        _isLoading = true;
+        try { await ApiService.HandlePwdResetApply(_rejectId, false, _rejectReason); _showReject = false; _success = "已驳回"; await Load(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _isLoading = false; }
+    }
+}

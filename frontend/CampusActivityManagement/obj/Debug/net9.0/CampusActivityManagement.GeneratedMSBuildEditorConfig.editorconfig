@@ -1,0 +1,127 @@
+is_global = true
+build_property.EnableAotAnalyzer = 
+build_property.EnableSingleFileAnalyzer = 
+build_property.EnableTrimAnalyzer = false
+build_property.IncludeAllContentForSelfExtract = 
+build_property.TargetFramework = net9.0
+build_property.TargetFrameworkIdentifier = .NETCoreApp
+build_property.TargetFrameworkVersion = v9.0
+build_property.TargetPlatformMinVersion = 
+build_property.UsingMicrosoftNETSdkWeb = 
+build_property.ProjectTypeGuids = 
+build_property.InvariantGlobalization = false
+build_property.PlatformNeutralAssembly = 
+build_property.EnforceExtendedAnalyzerRules = 
+build_property._SupportedPlatformList = browser
+build_property.RootNamespace = CampusActivityManagement
+build_property.RootNamespace = CampusActivityManagement
+build_property.ProjectDir = E:\lqh\ActivitiesPlatform\frontend\CampusActivityManagement\
+build_property.EnableComHosting = 
+build_property.EnableGeneratedComInterfaceComImportInterop = false
+build_property.RazorLangVersion = 9.0
+build_property.SupportLocalizedComponentNames = 
+build_property.GenerateRazorMetadataSourceChecksumAttributes = 
+build_property.MSBuildProjectDirectory = E:\lqh\ActivitiesPlatform\frontend\CampusActivityManagement
+build_property._RazorSourceGeneratorDebug = 
+build_property.EffectiveAnalysisLevelStyle = 9.0
+build_property.EnableCodeStyleSeverity = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/App.razor]
+build_metadata.AdditionalFiles.TargetPath = QXBwLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Layout/NavMenu.razor]
+build_metadata.AdditionalFiles.TargetPath = TGF5b3V0XE5hdk1lbnUucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Pages/Activity/ActivityApply.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQWN0aXZpdHlcQWN0aXZpdHlBcHBseS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Pages/Activity/ActivityDetail.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQWN0aXZpdHlcQWN0aXZpdHlEZXRhaWwucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Pages/Activity/ActivityList.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQWN0aXZpdHlcQWN0aXZpdHlMaXN0LnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Pages/Activity/MyApplies.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQWN0aXZpdHlcTXlBcHBsaWVzLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Pages/Admin/ActivityAudit.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQWRtaW5cQWN0aXZpdHlBdWRpdC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Pages/Admin/PwdResetAudit.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQWRtaW5cUHdkUmVzZXRBdWRpdC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Pages/Admin/UserManagement.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQWRtaW5cVXNlck1hbmFnZW1lbnQucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Pages/Auth/ApplyResetPwd.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQXV0aFxBcHBseVJlc2V0UHdkLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Pages/Auth/BindEmail.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQXV0aFxCaW5kRW1haWwucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Pages/Auth/Login.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQXV0aFxMb2dpbi5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Pages/Auth/LoginByEmail.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQXV0aFxMb2dpbkJ5RW1haWwucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Pages/Auth/ResetPassword.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQXV0aFxSZXNldFBhc3N3b3JkLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Pages/Home.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcSG9tZS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Pages/SignIn/GenerateCode.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcU2lnbkluXEdlbmVyYXRlQ29kZS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Pages/SignIn/ScanSignIn.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcU2lnbkluXFNjYW5TaWduSW4ucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Pages/SignIn/SignInList.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcU2lnbkluXFNpZ25Jbkxpc3QucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Shared/DeleteButton.razor]
+build_metadata.AdditionalFiles.TargetPath = U2hhcmVkXERlbGV0ZUJ1dHRvbi5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Shared/ErrorMessage.razor]
+build_metadata.AdditionalFiles.TargetPath = U2hhcmVkXEVycm9yTWVzc2FnZS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Shared/LoadingOverlay.razor]
+build_metadata.AdditionalFiles.TargetPath = U2hhcmVkXExvYWRpbmdPdmVybGF5LnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Shared/RedirectToLogin.razor]
+build_metadata.AdditionalFiles.TargetPath = U2hhcmVkXFJlZGlyZWN0VG9Mb2dpbi5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Shared/SuccessMessage.razor]
+build_metadata.AdditionalFiles.TargetPath = U2hhcmVkXFN1Y2Nlc3NNZXNzYWdlLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/_Imports.razor]
+build_metadata.AdditionalFiles.TargetPath = X0ltcG9ydHMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/lqh/ActivitiesPlatform/frontend/CampusActivityManagement/Layout/MainLayout.razor]
+build_metadata.AdditionalFiles.TargetPath = TGF5b3V0XE1haW5MYXlvdXQucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = b-95t9eyg2nl

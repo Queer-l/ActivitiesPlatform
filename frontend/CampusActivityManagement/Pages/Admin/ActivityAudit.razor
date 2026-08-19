@@ -1,0 +1,222 @@
+@page "/admin/audit"
+@attribute [Authorize(Roles = "2,3,02,03")]
+@inject ApiService ApiService
+@inject AuthenticationStateProvider AuthStateProvider
+
+@* 活动审核页：管理员查看活动申请，执行通过或驳回。驳回时必须填写理由，并在成功后重新加载审核列表。 *@
+<PageTitle>活动审核</PageTitle>
+
+<h2>活动审核</h2>
+<ErrorMessage Message="@_error" OnDismiss="() => _error = string.Empty" />
+<SuccessMessage Message="@_success" OnDismiss="() => _success = string.Empty" />
+<LoadingOverlay IsLoading="_isLoading" />
+
+@if (_applies != null && _applies.Any())
+{
+    <div class="table-scroll">
+        <table class="table fixed-table audit-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>活动名称</th>
+                    <th>发布者</th>
+                    <th>状态</th>
+                    <th>人数</th>
+                    <th>活动时间</th>
+                    <th>驳回理由</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var activity in _applies)
+            {
+                <tr>
+                    <td>@activity.Id</td>
+                    <td title="@activity.Title">@activity.Title</td>
+                    <td>@activity.PublisherUserName</td>
+                    <td><span class="badge @GetStatusBadgeClass(activity.AuditStatus)">@GetStatusText(activity)</span></td>
+                    <td>@activity.MaxCount</td>
+                    <td>@activity.ActivityStartTime ~ @activity.ActivityEndTime</td>
+                    <td>@activity.RejectReason</td>
+                    <td>
+                        @if (activity.AuditStatus == PendingAuditStatus)
+                        {
+                            <button class="btn btn-success" @onclick="() => Audit(activity.Id, true)" style="padding:4px 8px;font-size:12px;">通过</button>
+                            <button class="btn btn-danger" @onclick="() => ShowReject(activity.Id)" style="padding:4px 8px;font-size:12px;">驳回</button>
+                        }
+                        else
+                        {
+                            <span style="color:#999;">-</span>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}
+else if (!_isLoading)
+{
+    <p>暂无待审核活动</p>
+}
+
+@if (_showReject)
+{
+    <div class="card">
+        <h4>驳回活动 #@_rejectId</h4>
+        <div class="form-group">
+            <label>驳回理由</label>
+            <textarea class="form-control" @bind="_rejectReason" rows="3" placeholder="请输入驳回理由"></textarea>
+            <div class="validation-error">@_rejectReasonError</div>
+        </div>
+        <div class="flex-row">
+            <button class="btn btn-danger" @onclick="ConfirmReject">确认驳回</button>
+            <button class="btn btn-secondary" @onclick="CancelReject">取消</button>
+        </div>
+    </div>
+}
+
+@code {
+    private const int PendingAuditStatus = 0;
+
+    private List<ActivityDto>? _applies;
+    private string _error = string.Empty;
+    private string _success = string.Empty;
+    private bool _isLoading;
+    private bool _showReject;
+    private int _rejectId;
+    private int _currentUserRole;
+    private string _rejectReason = string.Empty;
+    private string _rejectReasonError = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCurrentUser();
+        await LoadApplies();
+    }
+
+    private async Task LoadCurrentUser()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var roleValue = state.User.FindFirst(ClaimTypes.Role)?.Value;
+        _currentUserRole = NormalizeRole(roleValue);
+    }
+
+    private async Task LoadApplies()
+    {
+        _isLoading = true;
+        _error = string.Empty;
+
+        try
+        {
+            _applies = await ApiService.GetActivityApplies();
+        }
+        catch (Exception ex)
+        {
+            _error = NormalizeAuditError(ex.Message, _currentUserRole);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task Audit(int id, bool isPass)
+    {
+        _isLoading = true;
+        _error = string.Empty;
+        _success = string.Empty;
+
+        try
+        {
+            await ApiService.CheckActivityApplies(id, isPass);
+            _success = "审核成功";
+            await LoadApplies();
+        }
+        catch (Exception ex)
+        {
+            _error = NormalizeAuditError(ex.Message, _currentUserRole);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ShowReject(int id)
+    {
+        _showReject = true;
+        _rejectId = id;
+        _rejectReason = string.Empty;
+        _rejectReasonError = string.Empty;
+    }
+
+    private void CancelReject()
+    {
+        _showReject = false;
+    }
+
+    // 驳回与通过共用审核接口，但驳回必须先收集理由再发送 isPass=false。
+    private async Task ConfirmReject()
+    {
+        if (string.IsNullOrWhiteSpace(_rejectReason))
+        {
+            _rejectReasonError = "请输入驳回理由";
+            return;
+        }
+
+        _isLoading = true;
+        _error = string.Empty;
+
+        try
+        {
+            await ApiService.CheckActivityApplies(_rejectId, false, _rejectReason.Trim());
+            _showReject = false;
+            _success = "已驳回";
+            await LoadApplies();
+        }
+        catch (Exception ex)
+        {
+            _error = NormalizeAuditError(ex.Message, _currentUserRole);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private static string GetStatusText(ActivityDto activity)
+    {
+        return activity.DisplayAuditStatusText;
+    }
+
+    private static string GetStatusBadgeClass(int status) => status switch
+    {
+        0 => "badge-warning",
+        1 => "badge-success",
+        2 => "badge-danger",
+        _ => "badge-info"
+    };
+
+    private static int NormalizeRole(string? roleValue)
+    {
+        if (string.IsNullOrWhiteSpace(roleValue))
+        {
+            return 0;
+        }
+
+        return int.TryParse(roleValue.TrimStart('0'), out var role) ? role : 0;
+    }
+
+    private static string NormalizeAuditError(string message, int currentUserRole)
+    {
+        if (!message.Contains("只有超级管理员才能添加用户", StringComparison.Ordinal))
+        {
+            return message;
+        }
+
+        return currentUserRole >= 2
+            ? "后端活动审核接口返回了错误的权限提示。当前账号是管理员，前端已允许进入审核页，请检查后端 GetActivityApplies/CheckActivityApplies 的权限判断是否误用了添加用户权限。"
+            : "当前账号不是管理员，无法审核活动。";
+    }
+}

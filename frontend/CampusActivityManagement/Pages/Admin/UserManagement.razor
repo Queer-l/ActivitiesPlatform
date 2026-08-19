@@ -1,0 +1,128 @@
+@page "/admin/users"
+@attribute [Authorize(Roles = "2,3")]
+@inject ApiService ApiService
+@inject AuthenticationStateProvider AuthStateProvider
+
+@* 用户管理页：管理员查看、添加和编辑用户。页面会根据当前角色控制普通管理员和超级管理员的可用操作。 *@
+<PageTitle>用户管理</PageTitle>
+
+<h2>👥 用户管理</h2>
+<ErrorMessage Message="@_error" OnDismiss="() => _error = null" />
+<SuccessMessage Message="@_success" OnDismiss="() => _success = null" />
+<LoadingOverlay IsLoading="_isLoading" />
+
+@if (_isSuperAdmin)
+{
+    <button class="btn btn-primary mb-16" @onclick="ShowAddForm">➕ 添加用户</button>
+}
+
+@if (_showAddForm)
+{
+    <div class="card">
+        <h4>添加用户</h4>
+        <div class="form-group"><label>用户名 *</label><input class="form-control" @bind="_newUserName" /><div class="validation-error">@_newUserNameError</div></div>
+        <div class="form-group"><label>真实姓名 *</label><input class="form-control" @bind="_newRealName" /><div class="validation-error">@_newRealNameError</div></div>
+        <div class="form-group"><label>角色 *</label>
+            <select class="form-control" @bind="_newRole">
+                <option value="1">普通用户</option>
+                <option value="2">普通管理员</option>
+                <option value="3">超级管理员</option>
+            </select>
+        </div>
+        <div class="form-group"><label>邮箱</label><input class="form-control" @bind="_newEmail" /></div>
+        <div class="flex-row">
+            <button class="btn btn-success" @onclick="AddUser">确认添加</button>
+            <button class="btn btn-secondary" @onclick="CancelAdd">取消</button>
+        </div>
+    </div>
+}
+
+@if (_showEditForm)
+{
+    <div class="card">
+        <h4>编辑用户: @_editUserName</h4>
+        <div class="form-group"><label>邮箱</label><input class="form-control" @bind="_editEmail" /></div>
+        <div class="form-group"><label>角色</label>
+            <select class="form-control" @bind="_editRole">
+                <option value="1">普通用户</option>
+                <option value="2">普通管理员</option>
+                <option value="3">超级管理员</option>
+            </select>
+        </div>
+        <div class="flex-row">
+            <button class="btn btn-success" @onclick="SaveEdit">保存</button>
+            <button class="btn btn-secondary" @onclick="CancelEdit">取消</button>
+        </div>
+    </div>
+}
+
+@if (_users != null)
+{
+    <table class="table">
+        <thead><tr><th>ID</th><th>用户名</th><th>真实姓名</th><th>角色</th><th>邮箱</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody>
+        @foreach (var u in _users)
+        {
+            <tr>
+                <td>@u.Id</td><td>@u.UserName</td><td>@u.RealName</td>
+                <td>@GetRoleText(u.Role)</td><td>@u.Email</td>
+                <td>@(u.IsActive ? "正常" : "禁用")</td>
+                <td><button class="btn btn-primary" @onclick="() => ShowEdit(u)" style="padding:4px 8px;font-size:12px;">编辑</button></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<UserDto>? _users;
+    private string _error = ""; private string _success = ""; private bool _isLoading;
+    private bool _isSuperAdmin;
+    private bool _showAddForm; private bool _showEditForm;
+    private string _newUserName = ""; private string _newRealName = ""; private int _newRole = 1; private string _newEmail = "";
+    private string _newUserNameError = ""; private string _newRealNameError = "";
+    private string _editUserName = ""; private string _editEmail = ""; private int _editRole = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var roleClaim = state.User.FindFirst(ClaimTypes.Role);
+        _isSuperAdmin = roleClaim != null && roleClaim.Value == "3";
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        _isLoading = true; _error = "";
+        try { _users = await ApiService.GetUsersList(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _isLoading = false; }
+    }
+
+    private void ShowAddForm() { _showAddForm = true; _newUserName = ""; _newRealName = ""; _newRole = 1; _newEmail = ""; }
+    private void CancelAdd() { _showAddForm = false; }
+
+    private async Task AddUser()
+    {
+        _newUserNameError = string.IsNullOrWhiteSpace(_newUserName) ? "请输入用户名" : "";
+        _newRealNameError = string.IsNullOrWhiteSpace(_newRealName) ? "请输入真实姓名" : "";
+        if (!string.IsNullOrEmpty(_newUserNameError) || !string.IsNullOrEmpty(_newRealNameError)) return;
+        _isLoading = true;
+        try { await ApiService.AddUser(_newUserName, _newRealName, _newRole, string.IsNullOrWhiteSpace(_newEmail) ? null : _newEmail); _showAddForm = false; _success = "添加成功，初始密码123456"; await LoadUsers(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _isLoading = false; }
+    }
+
+    private void ShowEdit(UserDto user) { _showEditForm = true; _editUserName = user.UserName; _editEmail = user.Email ?? ""; _editRole = user.Role; }
+    private void CancelEdit() { _showEditForm = false; }
+
+    private async Task SaveEdit()
+    {
+        _isLoading = true;
+        try { await ApiService.AdminEditUser(_editUserName, string.IsNullOrWhiteSpace(_editEmail) ? null : _editEmail, _editRole); _showEditForm = false; _success = "编辑成功"; await LoadUsers(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _isLoading = false; }
+    }
+
+    private string GetRoleText(int role) => role switch { 1 => "普通用户", 2 => "普通管理员", 3 => "超级管理员", _ => "未知" };
+}

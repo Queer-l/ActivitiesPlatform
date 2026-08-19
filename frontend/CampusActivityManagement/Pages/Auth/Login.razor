@@ -1,0 +1,96 @@
+@page "/login"
+@inject ApiService ApiService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@using CampusActivityManagement.Services
+
+@* 密码登录页：提交用户名和密码，登录成功后由 CustomAuthStateProvider 写入 Token 并刷新授权状态。 *@
+<PageTitle>登录 - 校园活动管理系统</PageTitle>
+
+<div class="card" style="max-width: 400px; margin: 40px auto;">
+    <h3>密码登录</h3>
+
+    <ErrorMessage Message="@_error" OnDismiss="() => _error = string.Empty" />
+    <SuccessMessage Message="@_success" OnDismiss="() => _success = string.Empty" />
+
+    <div class="form-group">
+        <label>用户名 / 学号</label>
+        <input class="form-control" @bind="_userName" placeholder="请输入用户名" />
+        <div class="validation-error">@_userNameError</div>
+    </div>
+    <div class="form-group">
+        <label>密码</label>
+        <input class="form-control" type="password" @bind="_pwd" placeholder="请输入密码" />
+        <div class="validation-error">@_pwdError</div>
+    </div>
+
+    <div style="display: flex; gap: 8px;">
+        <button class="btn btn-primary" @onclick="HandleLogin" disabled="@_isLoading">
+            @(_isLoading ? "登录中..." : "登录")
+        </button>
+    </div>
+
+    <div style="margin-top: 16px; font-size: 0.9rem;">
+        <a href="/login-by-email">邮箱验证码登录</a>
+        <span style="margin: 0 8px;">|</span>
+        <a href="/reset-password">忘记密码</a>
+        <span style="margin: 0 8px;">|</span>
+        <a href="/apply-reset-pwd">申请重置密码</a>
+    </div>
+</div>
+
+@code {
+    private string _userName = string.Empty;
+    private string _pwd = string.Empty;
+    private string _error = string.Empty;
+    private string _success = string.Empty;
+    private bool _isLoading;
+    private string _userNameError = string.Empty;
+    private string _pwdError = string.Empty;
+
+    private bool Validate()
+    {
+        _userNameError = string.IsNullOrWhiteSpace(_userName) ? "请输入用户名" : string.Empty;
+        _pwdError = string.IsNullOrWhiteSpace(_pwd) ? "请输入密码" : string.Empty;
+        return string.IsNullOrEmpty(_userNameError) && string.IsNullOrEmpty(_pwdError);
+    }
+
+    // 登录成功后由授权状态提供器持久化 Token，随后返回首页或 returnUrl 对应页面。
+    private async Task HandleLogin()
+    {
+        if (!Validate())
+        {
+            return;
+        }
+
+        _isLoading = true;
+        _error = string.Empty;
+        _success = string.Empty;
+
+        try
+        {
+            // 登录成功后同时设置 ApiService 请求头和 Blazor 授权状态。
+            var result = await ApiService.LoginByPwd(_userName, _pwd);
+            if (result != null)
+            {
+                var authProvider = (CustomAuthStateProvider)AuthStateProvider;
+                ApiService.SetToken(result.Token);
+                await authProvider.SetTokenAsync(result.Token, result);
+                _success = "登录成功，正在跳转...";
+                Navigation.NavigateTo("/");
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            _error = ex.Message;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            _error = "登录已过期，请重新登录";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}
