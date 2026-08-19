@@ -1,0 +1,77 @@
+@page "/apply-reset-pwd"
+@inject ApiService ApiService
+
+@* 申请密码重置页：无法登录的用户提交用户名、真实姓名和原因，等待管理员人工审核。 *@
+<PageTitle>申请密码重置</PageTitle>
+
+<div class="card" style="max-width: 400px; margin: 40px auto;">
+    <h3>申请密码重置</h3>
+    <ErrorMessage Message="@_error" OnDismiss="() => _error = string.Empty" />
+    <SuccessMessage Message="@_success" OnDismiss="() => _success = string.Empty" />
+
+    <div class="form-group">
+        <label>用户名</label>
+        <input class="form-control" @bind="_userName" placeholder="请输入用户名" />
+        <div class="validation-error">@_userNameError</div>
+    </div>
+    <div class="form-group">
+        <label>真实姓名</label>
+        <input class="form-control" @bind="_realName" placeholder="请输入真实姓名" />
+        <div class="validation-error">@_realNameError</div>
+    </div>
+    <div class="form-group">
+        <label>申请理由</label>
+        <textarea class="form-control" @bind="_reason" rows="3" placeholder="请说明重置密码的原因"></textarea>
+        <div class="validation-error">@_reasonError</div>
+    </div>
+
+    <button class="btn btn-primary" @onclick="HandleSubmit" disabled="@_isLoading">
+        @(_isLoading ? "提交中..." : "提交申请")
+    </button>
+    <div style="margin-top: 16px; font-size: 0.9rem;"><a href="/login">返回登录</a></div>
+</div>
+
+@code {
+    private string _userName = string.Empty;
+    private string _realName = string.Empty;
+    private string _reason = string.Empty;
+    private string _error = string.Empty;
+    private string _success = string.Empty;
+    private bool _isLoading;
+    private string _userNameError = string.Empty;
+    private string _realNameError = string.Empty;
+    private string _reasonError = string.Empty;
+
+    private bool Validate()
+    {
+        _userNameError = string.IsNullOrWhiteSpace(_userName) ? "请输入用户名" : string.Empty;
+        _realNameError = string.IsNullOrWhiteSpace(_realName) ? "请输入真实姓名" : string.Empty;
+        _reasonError = string.IsNullOrWhiteSpace(_reason) ? "请输入申请理由" : string.Empty;
+        return string.IsNullOrEmpty(_userNameError) && string.IsNullOrEmpty(_realNameError) && string.IsNullOrEmpty(_reasonError);
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (!Validate())
+        {
+            return;
+        }
+
+        _isLoading = true;
+        _error = string.Empty;
+
+        try
+        {
+            await ApiService.ApplyResetPwd(_userName, _realName, _reason);
+            _success = "提交成功";
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

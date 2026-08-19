@@ -1,0 +1,47 @@
+@page "/signin-list"
+@attribute [Authorize]
+@inject ApiService ApiService
+
+@* 签到名单页：按活动 ID 查询签到记录，供活动发布者或有权限的用户查看签到结果。 *@
+<PageTitle>签到名单</PageTitle>
+
+<h2>✅ 签到名单</h2>
+<ErrorMessage Message="@_error" OnDismiss="() => _error = null" />
+<LoadingOverlay IsLoading="_isLoading" />
+
+<div class="form-group" style="max-width:300px;">
+    <label>活动 ID</label>
+    <div style="display:flex;gap:8px;">
+        <input class="form-control" type="number" @bind="_activityId" min="1" style="flex:1;" />
+        <button class="btn btn-primary" @onclick="LoadList">查询</button>
+    </div>
+</div>
+
+@if (_records != null)
+{
+    <p class="mt-16">共 @_records.Count 人签到</p>
+    <table class="table">
+        <thead><tr><th>ID</th><th>用户名</th><th>签到时间</th></tr></thead>
+        <tbody>
+        @foreach (var r in _records)
+        {
+            <tr><td>@r.Id</td><td>@r.UserName</td><td>@r.SignInTime</td></tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private int _activityId;
+    private List<SignInRecordDto>? _records;
+    private string _error = ""; private bool _isLoading;
+
+    private async Task LoadList()
+    {
+        if (_activityId < 1) return;
+        _isLoading = true; _error = "";
+        try { _records = await ApiService.GetSignInList(_activityId); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _isLoading = false; }
+    }
+}

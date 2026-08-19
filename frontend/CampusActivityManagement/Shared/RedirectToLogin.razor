@@ -1,0 +1,12 @@
+@inject NavigationManager Navigation
+@using CampusActivityManagement.Services
+
+@* 未授权访问受保护页面时的跳转组件：显示短暂加载提示，并把当前地址作为 returnUrl 带到登录页。 *@
+<LoadingOverlay IsLoading="true" Message="请先登录..." />
+
+@code {
+    protected override void OnInitialized()
+    {
+        Navigation.NavigateTo($"/login?returnUrl={Uri.EscapeDataString(Navigation.Uri)}");
+    }
+}

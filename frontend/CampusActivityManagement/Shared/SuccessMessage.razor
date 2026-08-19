@@ -1,0 +1,23 @@
+@* 通用成功提示组件：有消息时显示绿色提示条，关闭时通过 OnDismiss 通知父组件清空状态。 *@
+@if (!string.IsNullOrEmpty(Message))
+{
+    <div class="alert alert-success">
+        <span>✅ @Message</span>
+        <button class="alert-close" @onclick="Dismiss">&times;</button>
+    </div>
+}
+
+<style>
+    .alert-close { background: none; border: none; font-size: 18px; cursor: pointer; margin-left: 12px; color: inherit; float: right; }
+</style>
+
+@code {
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public EventCallback OnDismiss { get; set; }
+
+    private async Task Dismiss()
+    {
+        Message = null;
+        await OnDismiss.InvokeAsync();
+    }
+}
